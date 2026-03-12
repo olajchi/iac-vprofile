@@ -16,11 +16,12 @@ env:
  # Credentials for deployment to AWS
  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+ # S3 bucket for the Terraform state
  BUCKET_TF_STATE: ${{ secrets.BUCKET_TF_STATE}}
  AWS_REGION: us-east-2
  EKS_CLUSTER: vprofile-eks
- # FIX 1: This is the specific fix for the Node.js 24 deprecation error
- FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+ # FIX 1: This removes the Node.js 20 warning by forcing the runner to Node 24
+ FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
    terraform:
@@ -39,7 +40,8 @@ jobs:
          uses: hashicorp/setup-terraform@v3
          with:
            terraform_version: 1.6.3
-           # FIX 2: Prevents the "Exit Code 3" from causing a failure
+           # FIX 2: This stops the "Exit Code 3" from causing a failure. 
+           # It lets the raw Terraform result pass through to your next step.
            terraform_wrapper: false 
 
        - name: Terraform init
@@ -56,10 +58,11 @@ jobs:
 
        - name: Terraform plan
          id: plan
-         # Standard plan output
-         run: terraform plan -no-color -input=false
+         # We kept your out-file as requested
+         run: terraform plan -no-color -input=false -out planfile
          continue-on-error: true
 
        - name: Terraform plan status
+         # This will now correctly only fail if there is a syntax/credential error
          if: steps.plan.outcome == 'failure'
          run: exit 1
