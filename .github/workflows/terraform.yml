@@ -41,7 +41,7 @@ jobs:
            terraform_version: 1.6.3
            # FIX 2: This is the critical fix for Exit Code 3.
            # It stops the wrapper from failing the job when it finds changes.
-           terraform_wrapper: false 
+   
 
        - name: Terraform init
          id: init
