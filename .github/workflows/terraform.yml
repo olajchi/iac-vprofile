@@ -20,6 +20,8 @@ env:
  BUCKET_TF_STATE: ${{ secrets.BUCKET_TF_STATE}}
  AWS_REGION: us-east-2
  EKS_CLUSTER: vprofile-eks
+# FIX: Force Node 24 to clear the deprecation warnings
+ FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
    terraform:
