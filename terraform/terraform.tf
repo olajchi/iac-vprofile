@@ -36,7 +36,3 @@ terraform {
   # Keeps you on the 1.6 branch to ensure Action stability
   required_version = "~> 1.6.3"
 }
-
-##
-##
-##
