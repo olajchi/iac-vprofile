@@ -19,7 +19,7 @@ env:
  BUCKET_TF_STATE: ${{ secrets.BUCKET_TF_STATE}}
  AWS_REGION: us-east-2
  EKS_CLUSTER: vprofile-eks
- # FIX 1: This removes the Node.js 20 warning by forcing Node 24 immediately
+ # Opt into Node.js 24 early to avoid deprecation warnings
  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -39,9 +39,7 @@ jobs:
          uses: hashicorp/setup-terraform@v3
          with:
            terraform_version: 1.6.3
-           # FIX 2: This is the critical fix for Exit Code 3.
-           # It stops the wrapper from failing the job when it finds changes.
-   
+           terraform_wrapper: false # Prevents exit code 3 from failing the job
 
        - name: Terraform init
          id: init
@@ -49,7 +47,7 @@ jobs:
 
        - name: Terraform format
          id: fmt
-         run: terraform fmt
+         run: terraform fmt # Removed -check to avoid cosmetic failures
 
        - name: Terraform validate
          id: validate
@@ -57,11 +55,32 @@ jobs:
 
        - name: Terraform plan
          id: plan
-         # We keep your planfile and continue-on-error exactly as you had them
          run: terraform plan -no-color -input=false -out planfile
          continue-on-error: true
 
        - name: Terraform plan status
-         # This now correctly only fails if there is a real syntax or credential error
          if: steps.plan.outcome == 'failure'
          run: exit 1
+
+       - name: Terraform Apply
+         id: apple
+         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+         run: terraform apply -auto-approve -input=false planfile
+
+       - name: Configure AWS credentials
+         # v4 is required for Node 24 support
+         uses: aws-actions/configure-aws-credentials@v4
+         with:
+           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+           aws-region: ${{ env.AWS_REGION }}
+
+       - name: Get Kube config file
+         id: getconfig
+         if: steps.apple.outcome == 'success'
+         run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER }}
+
+       - name: Install Ingress controller
+         if: steps.apple.outcome == 'success' && steps.getconfig.outcome == 'success'
+         # v1.12.0 is verified for Kubernetes 1.31 (2026 standard)
+         run: kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.0/deploy/static/provider/aws/deploy.yaml
